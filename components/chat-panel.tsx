@@ -28,8 +28,7 @@ export function ChatPanel({
   scrollToBottom
 }: ChatPanelProps) {
   const [aiState] = useAIState()
-  const [messages, setMessages] = useUIState<typeof AI>()
-  const { submitUserMessage } = useActions()
+  const [messages] = useUIState<typeof AI>()
   const [shareDialogOpen, setShareDialogOpen] = React.useState(false)
 
   return (
