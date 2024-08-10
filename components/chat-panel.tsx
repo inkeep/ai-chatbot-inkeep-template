@@ -6,9 +6,8 @@ import { ButtonScrollToBottom } from '@/components/button-scroll-to-bottom'
 import { IconShare } from '@/components/ui/icons'
 import { FooterText } from '@/components/footer'
 import { ChatShareDialog } from '@/components/chat-share-dialog'
-import { useAIState, useActions, useUIState } from 'ai/rsc'
+import { useAIState, useUIState } from 'ai/rsc'
 import type { AI } from '@/lib/chat/actions'
-import { nanoid } from 'nanoid'
 
 export interface ChatPanelProps {
   id?: string
@@ -28,8 +27,7 @@ export function ChatPanel({
   scrollToBottom
 }: ChatPanelProps) {
   const [aiState] = useAIState()
-  const [messages, setMessages] = useUIState<typeof AI>()
-  const { submitUserMessage } = useActions()
+  const [messages] = useUIState<typeof AI>()
   const [shareDialogOpen, setShareDialogOpen] = React.useState(false)
 
   return (

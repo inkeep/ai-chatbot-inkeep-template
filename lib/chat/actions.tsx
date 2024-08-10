@@ -15,6 +15,8 @@ import { Message, streamObject } from 'ai'
 import { z } from 'zod'
 import { IconExternalLink } from '@/components/ui/icons'
 
+export const maxDuration = 300;
+
 const openai = createOpenAI({
   apiKey: process.env.INKEEP_API_KEY,
   baseURL: 'https://api.inkeep.com/v1'

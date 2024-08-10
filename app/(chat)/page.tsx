@@ -3,6 +3,8 @@ import { Chat } from '@/components/chat'
 import { AI } from '@/lib/chat/actions'
 import { getMissingKeys } from '@/app/actions'
 
+export const maxDuration = 300;
+
 export const metadata = {
   title: 'Next.js AI Chatbot'
 }
