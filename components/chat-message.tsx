@@ -15,7 +15,6 @@ import type { z } from 'zod'
 import { LinksSchema } from '@/lib/inkeep-qa-schema'
 import { FollowUpQuestionsCards } from './followup-questions'
 
-
 export interface ChatMessageProps {
   message: Message
   links?: z.infer<typeof LinksSchema> | null

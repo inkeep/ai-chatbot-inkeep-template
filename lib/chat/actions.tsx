@@ -17,7 +17,7 @@ import { Message, streamObject } from 'ai'
 import { z } from 'zod'
 import { IconCaretRight, IconUsers } from '@/components/ui/icons'
 
-export const maxDuration = 300;
+export const maxDuration = 300
 
 const openai = createOpenAI({
   apiKey: process.env.INKEEP_API_KEY,
@@ -41,15 +41,14 @@ async function submitUserMessage(content: string) {
     ]
   })
 
+  const chatMessage = createStreamableUI()
+  chatMessage.update(<LoadingGrid />)
 
   try {
-    const chatMessage = createStreamableUI()
-    chatMessage.update(<LoadingGrid />)
-
     runAsyncFnWithoutBlocking(async () => {
-       const result = await streamObject({
-          model: openai('inkeep-context-gpt-4o'),
-          system: `
+      const result = await streamObject({
+        model: openai('inkeep-context-gpt-4o'),
+        system: `
             You are a helpful AI assistant for Inkeep. Your primary goal is to provide accurate and relevant information to users based on the information sources you have.
 
             Follow these guidelines:
@@ -61,16 +60,17 @@ async function submitUserMessage(content: string) {
             5. Maintain a friendly and professional tone.
             6. Prioritize user satisfaction and clarity in your responses.
           `,
-          messages: [
-            ...aiState.get().messages.map((message: any) => ({
-              role: message.role,
-              content: message.content,
-              name: 'inkeep-context-user-message',
-              id: message.id
-            }))
-          ],
-          mode: 'json',
-          schema: z.object({
+        messages: [
+          ...aiState.get().messages.map((message: any) => ({
+            role: message.role,
+            content: message.content,
+            name: 'inkeep-context-user-message',
+            id: message.id
+          }))
+        ],
+        mode: 'json',
+        schema: z
+          .object({
             linksObj: linksObj.nullish(),
             isProspectObj: isProspectObj.nullish(),
             needsHelpObj: needsHelpObj.nullish(),
@@ -79,29 +79,31 @@ async function submitUserMessage(content: string) {
               .describe('REQUIRED response message content')
               .nullish(),
             followUpQuestions: FollowUpQuestionsSchema.nullish()
-          }).nullish()
-        })
+          })
+          .nullish()
+      })
 
-       const { partialObjectStream } = result
-    
-        let fullResponseMessage = {
-          id: nanoid(),
-          content: '',
-          role: 'assistant'
-        } as Message
+      const { partialObjectStream } = result
 
-        let objectsToHandle: {
-          isProspectObj: z.infer<typeof isProspectObj> | {}
-          needsHelpObj: z.infer<typeof needsHelpObj> | {}
-          linksObj: z.infer<typeof linksObj> | {}
-        } = {
-          isProspectObj: {},
-          needsHelpObj: {},
-          linksObj: {}
-        }
+      let fullResponseMessage = {
+        id: nanoid(),
+        content: '',
+        role: 'assistant'
+      } as Message
 
-        let followUpQuestions: string[] = []
+      let objectsToHandle: {
+        isProspectObj: z.infer<typeof isProspectObj> | {}
+        needsHelpObj: z.infer<typeof needsHelpObj> | {}
+        linksObj: z.infer<typeof linksObj> | {}
+      } = {
+        isProspectObj: {},
+        needsHelpObj: {},
+        linksObj: {}
+      }
 
+      let followUpQuestions: string[] = []
+
+      try {
         for await (const partialStream of partialObjectStream) {
           if (partialStream?.content) {
             fullResponseMessage.content = partialStream.content
@@ -131,25 +133,22 @@ async function submitUserMessage(content: string) {
         const finalUIChatMessage = getFinalUI(
           fullResponseMessage,
           objectsToHandle,
-          followUpQuestions,
+          followUpQuestions
         )
 
         chatMessage.done(finalUIChatMessage)
         aiState.done({
           ...aiState.get(),
-          messages: [
-            ...aiState.get().messages,
-            fullResponseMessage
-          ]
+          messages: [...aiState.get().messages, fullResponseMessage]
         })
-      })
-    } catch (error) {
-      console.log('Error when processing partialObjectStream:', error)
-      chatMessage.done(null)
-      aiState.done({
-        ...aiState.get()
-      })
-    }
+      } catch (error) {
+        console.log('Error when processing partialObjectStream:', error)
+        chatMessage.done(null)
+        aiState.done({
+          ...aiState.get()
+        })
+      }
+    })
 
     return {
       id: nanoid(),
@@ -157,6 +156,7 @@ async function submitUserMessage(content: string) {
     }
   } catch (error) {
     console.log('Error:', error)
+    chatMessage.done(null)
     aiState.done({
       ...aiState.get()
     })
@@ -194,17 +194,17 @@ const getFinalUI = (
   objectsToHandle: any,
   followUpQuestions: string[]
 ): React.ReactNode => {
-  console.log('fullResponseMessage:', fullResponseMessage.content)
   if (fullResponseMessage.content === '') {
-      return  (
-        <ChatMessage
-          message={{
-            ...fullResponseMessage,
-            content: 'Sorry, I am unable to provide a response at this time. Try again, or contact Inkeep for assistance.'
-          }}
-          customInfoCard={<HelpCard />}
-        />
-      )
+    return (
+      <ChatMessage
+        message={{
+          ...fullResponseMessage,
+          content:
+            'Sorry, I am unable to provide a response at this time. Try again, or contact Inkeep for assistance.'
+        }}
+        customInfoCard={<SupportButton />}
+      />
+    )
   }
 
   if (Object.keys(objectsToHandle.needsHelpObj).length > 0) {
@@ -250,13 +250,9 @@ function SupportButton() {
   return (
     <div className="pt-8">
       <Button asChild variant="outline">
-      <a
-          href="https://inkeep.com"
-          target="_blank"
-          rel="noreferrer"
-        >
-            <IconUsers className="size-4 text-muted-foreground mr-2" />
-            <div>Get support</div>
+        <a href="https://inkeep.com" target="_blank" rel="noreferrer">
+          <IconUsers className="size-4 text-muted-foreground mr-2" />
+          <div>Get support</div>
         </a>
       </Button>
     </div>
@@ -266,16 +262,12 @@ function SupportButton() {
 function IsProspectCard() {
   return (
     <div className="pt-8">
-    <Button asChild variant="outline">
-    <a
-        href="https://inkeep.com"
-        target="_blank"
-        rel="noreferrer"
-      >
+      <Button asChild variant="outline">
+        <a href="https://inkeep.com" target="_blank" rel="noreferrer">
           <div>Schedule a demo</div>
           <IconCaretRight className="size-4 text-muted-foreground ml-2" />
-      </a>
-    </Button>
-  </div>
+        </a>
+      </Button>
+    </div>
   )
 }
