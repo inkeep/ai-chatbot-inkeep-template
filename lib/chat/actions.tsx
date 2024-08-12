@@ -6,9 +6,9 @@ import { createOpenAI } from '@ai-sdk/openai'
 import { nanoid } from '@/lib/utils'
 import {
   FollowUpQuestionsSchema,
-  IsProspectObj,
-  LinksObj,
-  NeedsHelpObj
+  isProspectObj,
+  linksObj,
+  needsHelpObj
 } from '../inkeep-qa-schema'
 import { ChatMessage } from '@/components/chat-message'
 import { Message, streamObject } from 'ai'
@@ -39,8 +39,6 @@ async function submitUserMessage(content: string) {
     ]
   })
 
-  // You are a helpful AI assistant. Your primary goal is to provide accurate and relevant information to users based on the information sources you have.
-
   try {
     const result = await streamObject({
       model: openai('inkeep-context-gpt-4o'),
@@ -48,10 +46,10 @@ async function submitUserMessage(content: string) {
         You are a helpful AI assistant for Inkeep. Your primary goal is to provide accurate and relevant information to users based on the information sources you have.
 
         Follow these guidelines:
-        1. ALWAYS respond with message content in the "content" property.
-        2. If you have links to relevant information, return a "LinksObj" object along with message content in the "content" property.
-        3. If the user asks about access to the platform, pricing, plans, or costs, return a "IsProspectObj" object along with message content in the "content" property.
-        4. If the user is not satisfied with the experience and needs help, support, or further assistance, return a "NeedsHelpObj" object along with message content in the "content" property.
+        1. ALWAYS respond with message content in the "content" property. If you cannot provide a response, a "needsHelpObj" object.
+        2. If you have links to relevant information, return a "linksObj" object along with message content in the "content" property.
+        3. If the user asks about access to the platform, pricing, plans, or costs, return a "isProspectObj" object along with message content in the "content" property.
+        4. If the user is not satisfied with the experience and needs help, support, or further assistance, return a "needsHelpObj" object along with message content in the "content" property.
         5. ALWAYS anticipate the user's next questions and provide them in the "followUpQuestions" property. DO NOT list or include these questions in the "content" property. These should be questions the user would ask next or that would be related to their previous questions. These need to be worded from the user's perspective.
         5. Maintain a friendly and professional tone.
         6. Prioritize user satisfaction and clarity in your responses.
@@ -66,87 +64,89 @@ async function submitUserMessage(content: string) {
       ],
       mode: 'json',
       schema: z.object({
-        LinksObj: LinksObj.nullish(),
-        IsProspectObj: IsProspectObj.nullish(),
-        NeedsHelpObj: NeedsHelpObj.nullish(),
+        linksObj: linksObj.nullish(),
+        isProspectObj: isProspectObj.nullish(),
+        needsHelpObj: needsHelpObj.nullish(),
         content: z
           .string()
           .describe('REQUIRED response message content')
           .nullish(),
         followUpQuestions: FollowUpQuestionsSchema.nullish()
-      })
+      }).nullish()
     })
 
     const { partialObjectStream } = result
+
     const chatMessage = createStreamableUI()
 
-    runAsyncFnWithoutBlocking(async () => {
-      let fullToolCall = {
-        IsProspectObj: {},
-        NeedsHelpObj: {},
-        LinksObj: {}
-      }
+    try {
+      runAsyncFnWithoutBlocking(async () => {
+        let fullResponseMessage = {
+          id: nanoid(),
+          content: '',
+          role: 'assistant'
+        } as Message
 
-      const fullResponseMessageId = nanoid()
-      let fullResponseMessage = {
-        id: fullResponseMessageId,
-        content: '',
-        role: 'assistant'
-      } as Message
-
-      let followUpQuestions: string[] = []
-
-      for await (const partialStream of partialObjectStream) {
-        let responseMessage = {
-          ...fullResponseMessage
-        }
-        if (partialStream.content) {
-          responseMessage.content = partialStream.content
+        let objectsToHandle: {
+          isProspectObj: z.infer<typeof isProspectObj> | {}
+          needsHelpObj: z.infer<typeof needsHelpObj> | {}
+          linksObj: z.infer<typeof linksObj> | {}
+        } = {
+          isProspectObj: {},
+          needsHelpObj: {},
+          linksObj: {}
         }
 
-        const messageToShow = <ChatMessage message={responseMessage} />
-        chatMessage.update(messageToShow)
+        let followUpQuestions: string[] = []
 
-        if (partialStream.IsProspectObj) {
-          fullToolCall.IsProspectObj = partialStream.IsProspectObj
-        } else if (partialStream.NeedsHelpObj) {
-          fullToolCall.NeedsHelpObj = partialStream.NeedsHelpObj
-        } else if (partialStream.LinksObj) {
-          fullToolCall.LinksObj = partialStream.LinksObj
-        }
-
-        if (
-          partialStream.followUpQuestions &&
-          partialStream.followUpQuestions.length > 0
-        ) {
-          followUpQuestions = partialStream.followUpQuestions.filter(
-            question => question !== undefined
-          )
-        }
-
-        fullResponseMessage = responseMessage
-      }
-
-      const finalUIChatMessage = getFinalUI(
-        fullResponseMessage,
-        fullToolCall,
-        followUpQuestions
-      )
-
-      chatMessage.done(finalUIChatMessage)
-
-      aiState.done({
-        ...aiState.get(),
-        messages: [
-          ...aiState.get().messages,
-          {
-            id: fullResponseMessageId,
-            role: 'assistant',
-            content: fullResponseMessage.content
+        for await (const partialStream of partialObjectStream) {
+          if (partialStream?.content) {
+            fullResponseMessage.content = partialStream.content
           }
-        ]
+
+          const messageToShow = <ChatMessage message={fullResponseMessage} />
+          chatMessage.update(messageToShow)
+
+          if (partialStream?.isProspectObj) {
+            objectsToHandle.isProspectObj = partialStream.isProspectObj
+          } else if (partialStream?.needsHelpObj) {
+            objectsToHandle.needsHelpObj = partialStream.needsHelpObj
+          } else if (partialStream?.linksObj) {
+            objectsToHandle.linksObj = partialStream.linksObj
+          }
+
+          if (
+            partialStream?.followUpQuestions &&
+            partialStream?.followUpQuestions.length > 0
+          ) {
+            followUpQuestions = partialStream.followUpQuestions.filter(
+              question => question !== undefined
+            )
+          }
+        }
+
+        const finalUIChatMessage = getFinalUI(
+          fullResponseMessage,
+          objectsToHandle,
+          followUpQuestions,
+        )
+
+        chatMessage.done(finalUIChatMessage)
+        aiState.done({
+          ...aiState.get(),
+          messages: [
+            ...aiState.get().messages,
+            fullResponseMessage
+          ]
+        })
       })
-    })
+    } catch (error) {
+      console.log('Error when processing partialObjectStream:', error)
+      chatMessage.done(null)
+      aiState.done({
+        ...aiState.get()
+      })
+    }
 
     return {
       id: nanoid(),
@@ -187,11 +187,24 @@ const runAsyncFnWithoutBlocking = (fn: (...args: any) => Promise<any>) => {
 }
 
 const getFinalUI = (
-  fullResponseMessage: any,
-  toolCall: any,
+  fullResponseMessage: Message,
+  objectsToHandle: any,
   followUpQuestions: string[]
 ): React.ReactNode => {
-  if (Object.keys(toolCall.NeedsHelpObj).length > 0) {
+  console.log('fullResponseMessage:', fullResponseMessage.content)
+  if (fullResponseMessage.content === '') {
+      return  (
+        <ChatMessage
+          message={{
+            ...fullResponseMessage,
+            content: 'Sorry, I am unable to provide a response at this time. Try again, or contact Inkeep for assistance.'
+          }}
+          customInfoCard={<HelpCard />}
+        />
+      )
+  }
+
+  if (Object.keys(objectsToHandle.needsHelpObj).length > 0) {
     return (
       <ChatMessage
         message={fullResponseMessage}
@@ -201,7 +214,7 @@ const getFinalUI = (
     )
   }
 
-  if (Object.keys(toolCall.IsProspectObj).length > 0) {
+  if (Object.keys(objectsToHandle.isProspectObj).length > 0) {
     return (
       <ChatMessage
         message={fullResponseMessage}
@@ -211,9 +224,8 @@ const getFinalUI = (
     )
   }
 
-  if (Object.keys(toolCall.LinksObj).length > 0) {
-    const toolParsed = LinksObj.safeParse(toolCall.LinksObj)
-
+  if (Object.keys(objectsToHandle.linksObj).length > 0) {
+    const toolParsed = linksObj.safeParse(objectsToHandle.linksObj)
     return (
       <ChatMessage
         message={fullResponseMessage}
@@ -234,7 +246,6 @@ const getFinalUI = (
 function HelpCard() {
   return (
     <div className="pt-8">
-      <h3 className="text-sm text-muted-foreground">Sources</h3>
       <div className="mt-3 flex flex-col gap-3">
         <a
           href="https://inkeep.com"
@@ -257,7 +268,6 @@ function HelpCard() {
 function IsProspectCard() {
   return (
     <div className="pt-8">
-      <h3 className="text-sm text-muted-foreground">Sources</h3>
       <div className="mt-3 flex flex-col gap-3">
         <a
           href="https://inkeep.com"
