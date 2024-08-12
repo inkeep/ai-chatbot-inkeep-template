@@ -11,9 +11,11 @@ import {
   NeedsHelpObj
 } from '../inkeep-qa-schema'
 import { ChatMessage } from '@/components/chat-message'
+import { LoadingGrid } from '@/components/loading'
+import { Button } from '@/components/ui/button'
 import { Message, streamObject } from 'ai'
 import { z } from 'zod'
-import { IconExternalLink } from '@/components/ui/icons'
+import { IconCaretRight, IconUsers } from '@/components/ui/icons'
 
 export const maxDuration = 300;
 
@@ -39,48 +41,51 @@ async function submitUserMessage(content: string) {
     ]
   })
 
+
+
   // You are a helpful AI assistant. Your primary goal is to provide accurate and relevant information to users based on the information sources you have.
-
   try {
-    const result = await streamObject({
-      model: openai('inkeep-context-gpt-4o'),
-      system: `
-        You are a helpful AI assistant for Inkeep. Your primary goal is to provide accurate and relevant information to users based on the information sources you have.
-
-        Follow these guidelines:
-        1. ALWAYS respond with message content in the "content" property.
-        2. If you have links to relevant information, return a "LinksObj" object along with message content in the "content" property.
-        3. If the user asks about access to the platform, pricing, plans, or costs, return a "IsProspectObj" object along with message content in the "content" property.
-        4. If the user is not satisfied with the experience and needs help, support, or further assistance, return a "NeedsHelpObj" object along with message content in the "content" property.
-        5. ALWAYS anticipate the user's next questions and provide them in the "followUpQuestions" property. DO NOT list or include these questions in the "content" property. These should be questions the user would ask next or that would be related to their previous questions. These need to be worded from the user's perspective.
-        5. Maintain a friendly and professional tone.
-        6. Prioritize user satisfaction and clarity in your responses.
-      `,
-      messages: [
-        ...aiState.get().messages.map((message: any) => ({
-          role: message.role,
-          content: message.content,
-          name: 'inkeep-context-user-message',
-          id: message.id
-        }))
-      ],
-      mode: 'json',
-      schema: z.object({
-        LinksObj: LinksObj.nullish(),
-        IsProspectObj: IsProspectObj.nullish(),
-        NeedsHelpObj: NeedsHelpObj.nullish(),
-        content: z
-          .string()
-          .describe('REQUIRED response message content')
-          .nullish(),
-        followUpQuestions: FollowUpQuestionsSchema.nullish()
-      })
-    })
-
-    const { partialObjectStream } = result
     const chatMessage = createStreamableUI()
+    chatMessage.update(<LoadingGrid />)
 
     runAsyncFnWithoutBlocking(async () => {
+      const result = await streamObject({
+        model: openai('inkeep-context-gpt-4o'),
+        system: `
+          You are a helpful AI assistant for Inkeep. Your primary goal is to provide accurate and relevant information to users based on the information sources you have.
+
+          Follow these guidelines:
+          1. ALWAYS respond with message content in the "content" property.
+          2. If you have links to relevant information, return a "LinksObj" object along with message content in the "content" property.
+          3. If the user asks about access to the platform, pricing, plans, or costs, return a "IsProspectObj" object along with message content in the "content" property.
+          4. If the user is not satisfied with the experience and needs help, support, or further assistance, return a "NeedsHelpObj" object along with message content in the "content" property.
+          5. ALWAYS anticipate the user's next questions and provide them in the "followUpQuestions" property. DO NOT list or include these questions in the "content" property. These should be questions the user would ask next or that would be related to their previous questions. These need to be worded from the user's perspective.
+          5. Maintain a friendly and professional tone.
+          6. Prioritize user satisfaction and clarity in your responses.
+        `,
+        messages: [
+          ...aiState.get().messages.map((message: any) => ({
+            role: message.role,
+            content: message.content,
+            name: 'inkeep-context-user-message',
+            id: message.id
+          }))
+        ],
+        mode: 'json',
+        schema: z.object({
+          LinksObj: LinksObj.nullish(),
+          IsProspectObj: IsProspectObj.nullish(),
+          NeedsHelpObj: NeedsHelpObj.nullish(),
+          content: z
+            .string()
+            .describe('REQUIRED response message content')
+            .nullish(),
+          followUpQuestions: FollowUpQuestionsSchema.nullish()
+        })
+      })
+
+      const { partialObjectStream } = result
+
       let fullToolCall = {
         IsProspectObj: {},
         NeedsHelpObj: {},
@@ -195,7 +200,7 @@ const getFinalUI = (
     return (
       <ChatMessage
         message={fullResponseMessage}
-        customInfoCard={<HelpCard />}
+        customInfoCard={<SupportButton />}
         followUpQuestions={followUpQuestions}
       />
     )
@@ -231,25 +236,19 @@ const getFinalUI = (
   )
 }
 
-function HelpCard() {
+function SupportButton() {
   return (
     <div className="pt-8">
-      <h3 className="text-sm text-muted-foreground">Sources</h3>
-      <div className="mt-3 flex flex-col gap-3">
-        <a
+      <Button asChild variant="outline">
+      <a
           href="https://inkeep.com"
           target="_blank"
           rel="noreferrer"
-          className="border-1 flex rounded-md border p-4 transition-colors duration-200 ease-in-out hover:bg-gray-50"
         >
-          <div className="flex shrink-0 items-center justify-center pr-3">
-            <IconExternalLink className="size-4 text-muted-foreground" />
-          </div>
-          <div className="flex min-w-0 max-w-full flex-col">
-            <h3 className="truncate text-sm">Contact Inkeep for assistance</h3>
-          </div>
+            <IconUsers className="size-4 text-muted-foreground mr-2" />
+            <div>Get support</div>
         </a>
-      </div>
+      </Button>
     </div>
   )
 }
@@ -257,24 +256,16 @@ function HelpCard() {
 function IsProspectCard() {
   return (
     <div className="pt-8">
-      <h3 className="text-sm text-muted-foreground">Sources</h3>
-      <div className="mt-3 flex flex-col gap-3">
-        <a
-          href="https://inkeep.com"
-          target="_blank"
-          rel="noreferrer"
-          className="border-1 flex rounded-md border p-4 transition-colors duration-200 ease-in-out hover:bg-gray-50"
-        >
-          <div className="flex shrink-0 items-center justify-center pr-3">
-            <IconExternalLink className="size-4 text-muted-foreground" />
-          </div>
-          <div className="flex min-w-0 max-w-full flex-col">
-            <h3 className="truncate text-sm">
-              Thanks for your interest in Inkeep! Contact us here.
-            </h3>
-          </div>
-        </a>
-      </div>
-    </div>
+    <Button asChild variant="outline">
+    <a
+        href="https://inkeep.com"
+        target="_blank"
+        rel="noreferrer"
+      >
+          <div>Schedule a demo</div>
+          <IconCaretRight className="size-4 text-muted-foreground ml-2" />
+      </a>
+    </Button>
+  </div>
   )
 }
