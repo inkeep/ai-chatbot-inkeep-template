@@ -40,13 +40,13 @@ export const FollowUpQuestionsSchema = z
   )
   .nullish()
 
-export const LinksObj = z
+export const linksObj = z
   .object({
     links: LinksSchema
   })
   .describe("Retrieve links related to the assistant's response")
 
-export const IsProspectObj = z
+export const isProspectObj = z
   .object({
     subjectMatter: z
       .string()
@@ -54,7 +54,7 @@ export const IsProspectObj = z
   })
   .describe('Tool call when the user is a prospect.')
 
-export const NeedsHelpObj = z
+export const needsHelpObj = z
   .object({
     subjectMatter: z
       .string()
